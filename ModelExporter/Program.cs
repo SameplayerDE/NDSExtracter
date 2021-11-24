@@ -80,18 +80,23 @@ namespace ModelExporter
                         nsbmd.Add(fileNameWoe);
                     }
                 }
-                if (extension == ".nsbtx")
+
+                if (!forced)
                 {
-                    if (!nsbtx.Contains(fileNameWoe))
+                    if (extension == ".nsbtx")
                     {
-                        //nsbtx.Add(fileNameWoe);
+                        if (!nsbtx.Contains(fileNameWoe))
+                        {
+                            //nsbtx.Add(fileNameWoe);
+                        }
                     }
-                }
-                if (extension == ".nsbca")
-                {
-                    if (!nsbca.Contains(fileNameWoe))
+
+                    if (extension == ".nsbca")
                     {
-                        nsbca.Add(fileNameWoe);
+                        if (!nsbca.Contains(fileNameWoe))
+                        {
+                            nsbca.Add(fileNameWoe);
+                        }
                     }
                 }
             }
@@ -104,7 +109,7 @@ namespace ModelExporter
                 if (forced)
                 {
                     proc = System.Diagnostics.Process.Start("apicula",
-                        $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx {dir}\\*.nsbpa {dir}\\*.nsbca --output {outputPath}\\output_assets{folder}\\");
+                        $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx {dir}\\*.nsbtp {dir}\\*.nsbca --output {outputPath}\\output_assets{folder}\\");
                 }
                 else
                 {
@@ -135,7 +140,7 @@ namespace ModelExporter
                         else
                         {
                             proc = System.Diagnostics.Process.Start("apicula",
-                                $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx {dir}\\*.nsbpa --output {outputPath}\\output_assets{folder}\\");
+                                $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx {dir}\\*.nsbtp --output {outputPath}\\output_assets{folder}\\");
                         }
                     }
                 }
