@@ -11,6 +11,7 @@ namespace ModelExporter
         static void Main(string[] args)
         {
             Process proc;
+            bool forced = false;
             Console.Write("Enter Path Of .NDS File: ");
             string ndsPath = Console.ReadLine();
 
@@ -30,6 +31,19 @@ namespace ModelExporter
                 Console.Read();
                 return;
             }
+
+            ConsoleKey  response;
+            
+            do
+            {
+                Console.Write("Do You Want To Use The Forced Animation Mode [Y/N]: ");
+                response = Console.ReadKey(false).Key;
+            }while (response != ConsoleKey.Y && response != ConsoleKey.N);
+
+            if (response == ConsoleKey.Y)
+            {
+                forced = true;
+            }
             
             if (Directory.Exists(outputPath + "\\output_assets"))
             {
@@ -44,7 +58,6 @@ namespace ModelExporter
             }
             
             
-
             List<string> nsbmd = new List<string>(); //models
             List<string> nsbtx = new List<string>(); //textures
             List<string> nsbca = new List<string>(); //animations
@@ -87,34 +100,43 @@ namespace ModelExporter
             {
                 var modelFile = model;
                 var folder = model.Replace(dir, "");
-                
-                if (nsbtx.Contains(model))
+
+                if (forced)
                 {
-                    if (nsbca.Contains(model))
-                    {
-                        //Console.WriteLine($"convert -f=glb {model}.nsbmd {model}.nsbtx --output {dir}\\ModelExporter{folder}\\");
-                        proc = System.Diagnostics.Process.Start("apicula",
-                            $"convert -f=glb {model}.nsbmd {model}.nsbtx {model}.nsbca --output {outputPath}\\output_assets{folder}\\");
-                    }
-                    else
-                    {
-                        //Console.WriteLine($"convert -f=glb {model}.nsbmd {model}.nsbtx --output {dir}\\ModelExporter{folder}\\");
-                        proc = System.Diagnostics.Process.Start("apicula",
-                            $"convert -f=glb {model}.nsbmd {model}.nsbtx --output {outputPath}\\output_assets{folder}\\");
-                    }
+                    proc = System.Diagnostics.Process.Start("apicula",
+                        $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx {dir}\\*.nsbpa {dir}\\*.nsbca --output {outputPath}\\output_assets{folder}\\");
                 }
                 else
                 {
-                    if (nsbca.Contains(model))
+
+                    if (nsbtx.Contains(model))
                     {
-                        //Console.WriteLine($"convert -f=glb {model}.nsbmd {model}.nsbtx --output {dir}\\ModelExporter{folder}\\");
-                        proc = System.Diagnostics.Process.Start("apicula",
-                            $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx {model}.nsbca --output {outputPath}\\output_assets{folder}\\");
+                        if (nsbca.Contains(model))
+                        {
+                            //Console.WriteLine($"convert -f=glb {model}.nsbmd {model}.nsbtx --output {dir}\\ModelExporter{folder}\\");
+                            proc = System.Diagnostics.Process.Start("apicula",
+                                $"convert -f=glb {model}.nsbmd {model}.nsbtx {model}.nsbca --output {outputPath}\\output_assets{folder}\\");
+                        }
+                        else
+                        {
+                            //Console.WriteLine($"convert -f=glb {model}.nsbmd {model}.nsbtx --output {dir}\\ModelExporter{folder}\\");
+                            proc = System.Diagnostics.Process.Start("apicula",
+                                $"convert -f=glb {model}.nsbmd {model}.nsbtx --output {outputPath}\\output_assets{folder}\\");
+                        }
                     }
                     else
                     {
-                        proc = System.Diagnostics.Process.Start("apicula",
-                            $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx --output {outputPath}\\output_assets{folder}\\");
+                        if (nsbca.Contains(model))
+                        {
+                            //Console.WriteLine($"convert -f=glb {model}.nsbmd {model}.nsbtx --output {dir}\\ModelExporter{folder}\\");
+                            proc = System.Diagnostics.Process.Start("apicula",
+                                $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx {model}.nsbca --output {outputPath}\\output_assets{folder}\\");
+                        }
+                        else
+                        {
+                            proc = System.Diagnostics.Process.Start("apicula",
+                                $"convert -f=glb {model}.nsbmd {dir}\\*.nsbtx {dir}\\*.nsbpa --output {outputPath}\\output_assets{folder}\\");
+                        }
                     }
                 }
 
