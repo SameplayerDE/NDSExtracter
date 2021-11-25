@@ -439,10 +439,10 @@ namespace ModelExporter
             inputPath = AskForFilePath("Enter Path Of .NDS File", "nds");
             outputPath = AskForDirectoryPath("Enter Path Where The Output Folder Should Be Created");
             //AskForYesNoOption("Do You Want To Use The Forced Animation Mode");
-            findAnimations = AskForYesNoOption("Do You Want To Use The Safe Animation Mode (Will Look For Animations That Have The Same Name As The Model)");
-            forcedAnimations = !findAnimations && AskForYesNoOption("Do You Want To Use The Forced Animation Mode (Will Break Some Models)");
-            forcedTexture = AskForYesNoOption("Do You Want To Use The Forced Texture Mode (Used Anyway)");
-            mode = AskForIntOption("How Many Files Should Be Converted At Once (High Number Can Slow Down Your System By A Lot)", 1, 10);
+            findAnimations = AskForYesNoOption("Do You Want To Use The Safe Animation Mode (Will Look For Animations That Have The Same Name As The Model, Recommended)");
+            forcedAnimations = !findAnimations && AskForYesNoOption("Do You Want To Use The Forced Animation Mode (Takes Much Longer And Will Break Some Models, Not Recommended)");
+            forcedTexture = AskForYesNoOption("Do You Want To Use The Forced Texture Mode (Takes Much Longer, Recommended)");
+            mode = AskForIntOption("How Many Files Should Be Converted At Once (High Number Can Slow Down Your System)", 1, 10);
             
             _stopWatch.Restart();
             SetupOutputFolders(outputPath);
