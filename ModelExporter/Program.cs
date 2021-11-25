@@ -22,7 +22,7 @@ namespace ModelExporter
         
         static void Main(string[] args)
         {
-            Setup(out var inputFile, out var outputPath, out var forced, out var mode);
+            Setup(out var inputFile, out var outputPath, out var forcedTexture, out var forcedAnimations, out var findAnimations, out var mode);
  
             _pool = new Semaphore(mode, mode);
             _stopWatch.Start();
@@ -41,7 +41,7 @@ namespace ModelExporter
             Console.WriteLine($"\nDone Checking Files. [{_stopWatch.ElapsedMilliseconds}ms]");
             
             Console.WriteLine($"\nConverting {nsbmd.Count} Files...");
-            var convertAllFilesTask = Task.Run(()=>ConvertAllModels(outputPath, 0, forced));
+            var convertAllFilesTask = Task.Run(()=>ConvertAllModels(outputPath, 0, findAnimations, forcedTexture, forcedAnimations));
             Task.WaitAll(convertAllFilesTask);
             
             Console.WriteLine("\nPress Any Key To Close The Console.");
@@ -214,7 +214,7 @@ namespace ModelExporter
 */
         }
 
-        static void ConvertAllModels(string outputPath, int mode, bool forced)
+        static void ConvertAllModels(string outputPath, int mode, bool findAnimations, bool forcedTextures, bool forcedAnimations)
         {
             _stopWatch.Restart();
             if (mode == 0) // sem
@@ -222,7 +222,7 @@ namespace ModelExporter
                 var listOfTasks = new List<Task>();
                 foreach (var model in nsbmd)
                 {
-                    listOfTasks.Add(Task.Run(() => ConvertModelSem(model, outputPath, forced)));
+                    listOfTasks.Add(Task.Run(() => ConvertModelSem(model, outputPath, findAnimations, forcedTextures, forcedAnimations)));
                 }
 
                 var convertAllFiles = Task.WhenAll(listOfTasks);
@@ -311,20 +311,29 @@ namespace ModelExporter
             await procConvert.WaitForExitAsync();
         }
         
-        static void ConvertModelSem(string inputPath, string outputPath, bool forced)
+        static void ConvertModelSem(string inputPath, string outputPath, bool findAnimations, bool forcedTextures, bool forcedAnimations)
         {
             _pool.WaitOne();
             var fileName = Path.GetFileName(inputPath);
 
-            var argument = $"convert -f=glb {inputPath}.nsbmd {outputPath}\\output_nds\\*.nsbtx --output {outputPath}\\output_assets\\{fileName}\\"; //{outputPath + "\\output_nds"}\\*.nsbtp
+            var outputString =  $" --output {outputPath}\\output_assets\\{fileName}\\";
+            var argument = $"convert -f=glb {inputPath}.nsbmd"; //{outputPath + "\\output_nds"}\\*.nsbtp
 
-            if (!forced)
+            if (forcedTextures)
+            {
+                argument += $" {outputPath}\\output_nds\\*.nsbtx";
+            }
+            
+            if (findAnimations)
             {
                 if (nsbca.Contains(inputPath))
                 {
-                    argument =
-                        $"convert -f=glb {inputPath}.nsbmd {inputPath}.nsbca {outputPath}\\output_nds\\*.nsbtx --output {outputPath}\\output_assets\\{fileName}\\"; //{outputPath + "\\output_nds"}\\*.nsbtp
+                    argument += $" {inputPath}.nsbca";
                 }
+            }
+            else if (forcedAnimations)
+            {
+                argument += $" {outputPath}\\output_nds\\*.nsbca";
             }
             
             var procConvert = new Process
@@ -332,8 +341,7 @@ namespace ModelExporter
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "apicula.exe",
-                    Arguments =
-                        $"convert -f=glb {inputPath}.nsbmd {outputPath}\\output_nds\\*.nsbtx --output {outputPath}\\output_assets\\{fileName}\\", //{outputPath + "\\output_nds"}\\*.nsbtp
+                    Arguments = argument + outputString,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     CreateNoWindow = true
@@ -425,14 +433,16 @@ namespace ModelExporter
             await procExtract.WaitForExitAsync();
         }
 
-        static void Setup(out string inputPath, out string outputPath, out bool forced, out int mode)
+        static void Setup(out string inputPath, out string outputPath, out bool forcedTexture, out bool forcedAnimations, out bool findAnimations, out int mode)
         {
             Console.ForegroundColor = ConsoleColor.White;
             inputPath = AskForFilePath("Enter Path Of .NDS File", "nds");
             outputPath = AskForDirectoryPath("Enter Path Where The Output Folder Should Be Created");
             //AskForYesNoOption("Do You Want To Use The Forced Animation Mode");
-            forced = AskForYesNoOption("Do You Want To Use The Forced Mode (Used Anyway)");
-            mode = AskForIntOption("How Many Files Should Be Converted At Once", 1, 10);
+            findAnimations = AskForYesNoOption("Do You Want To Use The Safe Animation Mode (Will Look For Animations That Have The Same Name As The Model)");
+            forcedAnimations = !findAnimations && AskForYesNoOption("Do You Want To Use The Forced Animation Mode (Will Break Some Models)");
+            forcedTexture = AskForYesNoOption("Do You Want To Use The Forced Texture Mode (Used Anyway)");
+            mode = AskForIntOption("How Many Files Should Be Converted At Once (High Number Can Slow Down Your System By A Lot)", 1, 10);
             
             _stopWatch.Restart();
             SetupOutputFolders(outputPath);
