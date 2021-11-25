@@ -41,7 +41,7 @@ namespace ModelExporter
             Console.WriteLine($"\nDone Checking Files. [{_stopWatch.ElapsedMilliseconds}ms]");
             
             Console.WriteLine($"\nConverting {nsbmd.Count} Files...");
-            var convertAllFilesTask = Task.Run(()=>ConvertAllModels(outputPath, 0));
+            var convertAllFilesTask = Task.Run(()=>ConvertAllModels(outputPath, 0, forced));
             Task.WaitAll(convertAllFilesTask);
             
             Console.WriteLine("\nPress Any Key To Close The Console.");
@@ -214,7 +214,7 @@ namespace ModelExporter
 */
         }
 
-        static void ConvertAllModels(string outputPath, int mode)
+        static void ConvertAllModels(string outputPath, int mode, bool forced)
         {
             _stopWatch.Restart();
             if (mode == 0) // sem
@@ -222,7 +222,7 @@ namespace ModelExporter
                 var listOfTasks = new List<Task>();
                 foreach (var model in nsbmd)
                 {
-                    listOfTasks.Add(Task.Run(() => ConvertModelSem(model, outputPath)));
+                    listOfTasks.Add(Task.Run(() => ConvertModelSem(model, outputPath, forced)));
                 }
 
                 var convertAllFiles = Task.WhenAll(listOfTasks);
@@ -311,11 +311,22 @@ namespace ModelExporter
             await procConvert.WaitForExitAsync();
         }
         
-        static void ConvertModelSem(string inputPath, string outputPath)
+        static void ConvertModelSem(string inputPath, string outputPath, bool forced)
         {
             _pool.WaitOne();
             var fileName = Path.GetFileName(inputPath);
 
+            var argument = $"convert -f=glb {inputPath}.nsbmd {outputPath}\\output_nds\\*.nsbtx --output {outputPath}\\output_assets\\{fileName}\\"; //{outputPath + "\\output_nds"}\\*.nsbtp
+
+            if (!forced)
+            {
+                if (nsbca.Contains(inputPath))
+                {
+                    argument =
+                        $"convert -f=glb {inputPath}.nsbmd {inputPath}.nsbca {outputPath}\\output_nds\\*.nsbtx --output {outputPath}\\output_assets\\{fileName}\\"; //{outputPath + "\\output_nds"}\\*.nsbtp
+                }
+            }
+            
             var procConvert = new Process
             {
                 StartInfo = new ProcessStartInfo
