@@ -10,6 +10,7 @@ namespace ModelExporter
 {
     class Program
     {
+        private static Semaphore _pool;
         
         static List<string> nsbmd = new List<string>(); //models
         static List<string> nsbtx = new List<string>(); //textures
@@ -17,43 +18,79 @@ namespace ModelExporter
         static List<string> nsbtp = new List<string>(); //patterns
         static List<string> nsbta = new List<string>(); //materials
         
+        private static Stopwatch _stopWatch = new Stopwatch();
+        
         static void Main(string[] args)
         {
-            Setup(out var inputFile, out var outputPath, out var forced);
+            Setup(out var inputFile, out var outputPath, out var forced, out var mode);
+ 
+            _pool = new Semaphore(mode, mode);
+            _stopWatch.Start();
             var extractingTask = ExtractFromNds(inputFile, outputPath);
             while (!extractingTask.IsCompleted)
             {
                 Console.Write(".");
                 Thread.Sleep(1000);
             }
-            Console.WriteLine("\nDone Extracting File.");
-            CheckAllNdsFiles(outputPath);
-            Console.WriteLine($"\nConverting {nsbmd.Count} Files...");
-
-            int loop = 0;
+            _stopWatch.Stop();
+            Console.WriteLine($"\nDone Extracting File. [{_stopWatch.ElapsedMilliseconds}ms]");
             
+            _stopWatch.Restart();
+            CheckAllNdsFiles(outputPath);
+            _stopWatch.Stop();
+            Console.WriteLine($"\nDone Checking Files. [{_stopWatch.ElapsedMilliseconds}ms]");
+            
+            Console.WriteLine($"\nConverting {nsbmd.Count} Files...");
+            var convertAllFilesTask = Task.Run(()=>ConvertAllModels(outputPath, 0));
+            Task.WaitAll(convertAllFilesTask);
+            
+            Console.WriteLine("\nPress Any Key To Close The Console.");
+            Console.ReadKey();
+            Process.Start("explorer.exe",outputPath);
+            /*var convertAllFiles = Tasks.StartAndWaitAllThrottledAsync(listOfTasks, 3);
+            while (!convertAllFiles.IsCompleted)
+            {
+                Console.WriteLine($"\nWaiting...");
+                int count = 0;
+                foreach (var task in listOfTasks)
+                {
+                    if (task.IsCompleted)
+                    {
+                        count++;
+                    }
+                }
+                var percentComplete = (int)Math.Round((double)(100 * count) / nsbmd.Count);
+                Console.Write("\r{0}                                               ", $"[{count}/{nsbmd.Count}] {percentComplete}%");
+            }
+            Console.WriteLine($"\nDone!");
+            /*
             var convertTask = Task.Run(() =>
             {
-                foreach (var model in nsbmd)
-                {
-                    var modelFile = model;
-                    var folder = model.Replace(outputPath + "\\output_nds", "");
+                Task task1 = Task.CompletedTask;
+                Task task2 = Task.CompletedTask;
+                int tasksRunning = 0;
 
-                    var proc2 = new Process
+                
+                    
+                    
+                    if (task1.IsCompleted)
                     {
-                        StartInfo = new ProcessStartInfo
+                        proc2.Start();
+                        task1 = proc2.WaitForExitAsync();
+                    }
+                    else
+                    {
+                        if (task2.IsCompleted)
                         {
-                            FileName = "apicula.exe",
-                            Arguments =
-                                $"convert -f=glb {model}.nsbmd {outputPath + "\\output_nds"}\\*.nsbtx {outputPath + "\\output_nds"}\\*.nsbtp --output {outputPath}\\output_assets{folder}\\",
-                            UseShellExecute = false,
-                            RedirectStandardOutput = true,
-                            CreateNoWindow = true
+                            proc2.Start();
+                            task2 = proc2.WaitForExitAsync();
                         }
-                    };
-
-                    proc2.Start();
-                    proc2.WaitForExit();
+                        else
+                        {
+                            Task.WaitAny(task1, task2);
+                        }
+                    }
+                    
                     loop++;
                 }
             });
@@ -177,13 +214,132 @@ namespace ModelExporter
 */
         }
 
+        static void ConvertAllModels(string outputPath, int mode)
+        {
+            _stopWatch.Restart();
+            if (mode == 0) // sem
+            {
+                var listOfTasks = new List<Task>();
+                foreach (var model in nsbmd)
+                {
+                    listOfTasks.Add(Task.Run(() => ConvertModelSem(model, outputPath)));
+                }
+
+                var convertAllFiles = Task.WhenAll(listOfTasks);
+
+                while (!convertAllFiles.IsCompleted)
+                {
+                    //Console.WriteLine($"\nWaiting...");
+                    int count = 0;
+                    foreach (var task in listOfTasks)
+                    {
+                        if (task.IsCompleted)
+                        {
+                            count++;
+                        }
+                    }
+
+                    var percentComplete = (int)Math.Round((double)(100 * count) / listOfTasks.Count);
+                    Console.Write("\r{0}                                               ",
+                        $"[{count}/{listOfTasks.Count}] {percentComplete}%");
+                }
+                Console.Write("\r{0}                                               ",
+                    $"[{listOfTasks.Count}/{listOfTasks.Count}] 100%");
+            }
+            else if (mode == 1) // async
+            {
+                int count = 0;
+                foreach (var model in nsbmd)
+                {
+                    var task = ConvertModelAsync(model, outputPath);
+                    Task.WaitAll(task);
+                    count++;
+                    var percentComplete = (int)Math.Round((double)(100 * count) / nsbmd.Count);
+                    Console.Write("\r{0}                                               ",
+                        $"[{count}/{nsbmd.Count}] {percentComplete}%");
+                }
+            }
+            else if (mode == 2) // single
+            {
+                int count = 0;
+                foreach (var model in nsbmd)
+                {
+                    ConvertModel(model, outputPath);
+                    count++;
+                }
+            }
+            _stopWatch.Stop();
+            Console.WriteLine($"\nDone Converting Files. [{_stopWatch.ElapsedMilliseconds}ms]");
+        }
+        
+        static void ConvertModel(string inputPath, string outputPath)
+        {
+            var fileName = Path.GetFileName(inputPath);
+            var procConvert = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "apicula.exe",
+                    Arguments =
+                        $"convert -f=glb {inputPath}.nsbmd {outputPath}\\output_nds\\*.nsbtx --output {outputPath}\\output_assets\\{fileName}\\", //{outputPath + "\\output_nds"}\\*.nsbtp
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                }
+            };
+            procConvert.Start();
+            procConvert.WaitForExit();
+        }
+        
+        static async Task ConvertModelAsync(string inputPath, string outputPath)
+        {
+            var fileName = Path.GetFileName(inputPath);
+
+            var procConvert = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "apicula.exe",
+                    Arguments =
+                        $"convert -f=glb {inputPath}.nsbmd {outputPath}\\output_nds\\*.nsbtx --output {outputPath}\\output_assets\\{fileName}\\", //{outputPath + "\\output_nds"}\\*.nsbtp
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                }
+            };
+            procConvert.Start();
+            await procConvert.WaitForExitAsync();
+        }
+        
+        static void ConvertModelSem(string inputPath, string outputPath)
+        {
+            _pool.WaitOne();
+            var fileName = Path.GetFileName(inputPath);
+
+            var procConvert = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "apicula.exe",
+                    Arguments =
+                        $"convert -f=glb {inputPath}.nsbmd {outputPath}\\output_nds\\*.nsbtx --output {outputPath}\\output_assets\\{fileName}\\", //{outputPath + "\\output_nds"}\\*.nsbtp
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                }
+            };
+            procConvert.Start();
+            procConvert.WaitForExit();
+            _pool.Release();
+        }
+        
         static void CheckAllNdsFiles(string inputPath)
         {
             var fileEntries = Directory.GetFiles(inputPath + "\\output_nds");
             var count = fileEntries.Length;
             var loop = 0;
             
-            Console.WriteLine($"Checking {count} Files Now...");
+            Console.WriteLine($"\nChecking {count} Files Now...");
             
             var task = Task.Run(() =>
             {
@@ -238,7 +394,6 @@ namespace ModelExporter
                 Console.Write("\r{0}                                               ", $"[{loop}/{count}] {percentComplete}%");
             }
             Console.Write("\r{0}                                               ", $"[{count}/{count}] 100%");
-            Console.WriteLine($"\nDone!");
         }
         
         static async Task ExtractFromNds(string inputPath, string outputPath)
@@ -254,19 +409,23 @@ namespace ModelExporter
                     CreateNoWindow = true
                 }
             };
-            Console.Write("Extracting Files...");
+            Console.Write("\nExtracting Files...");
             procExtract.Start();
             await procExtract.WaitForExitAsync();
         }
 
-        static void Setup(out string inputPath, out string outputPath, out bool forced)
+        static void Setup(out string inputPath, out string outputPath, out bool forced, out int mode)
         {
             Console.ForegroundColor = ConsoleColor.White;
             inputPath = AskForFilePath("Enter Path Of .NDS File", "nds");
             outputPath = AskForDirectoryPath("Enter Path Where The Output Folder Should Be Created");
-            SetupOutputFolders(outputPath);
             //AskForYesNoOption("Do You Want To Use The Forced Animation Mode");
             forced = AskForYesNoOption("Do You Want To Use The Forced Mode (Used Anyway)");
+            mode = AskForIntOption("How Many Files Should Be Converted At Once", 1, 10);
+            
+            _stopWatch.Restart();
+            SetupOutputFolders(outputPath);
+            _stopWatch.Stop();
         }
 
         static string AskForFilePath(string message, string extension, string errorNotFound = "File Not Found, Try Again.", string errorExtension = "File Has The Wrong Extension, Try Another File.")
@@ -331,55 +490,77 @@ namespace ModelExporter
             Console.WriteLine();
             return response == ConsoleKey.Y;
         }
+        static int AskForIntOption(string message, int min, int max)
+        {
+            int number;
+            var accept = false;
+            do 
+            {
+                Console.Write($"{message} [{min}-{max}]: ");
+                var input = Console.ReadLine();
+                accept = int.TryParse(input, out number);
+                if (!accept) continue;
+                if (!(number > min && number < max))
+                {
+                    //TODO print error
+                }
+            } while (!accept || (number < min || number > max));
+            Console.WriteLine();
+            return number;
+        }
         
         static void SetupOutputFolders(string outputPath)
         {
+            Console.Write("\nSetting Up Directories...");
             SetupOutputAssetFolder(outputPath);
             SetupOutputNdsFolder(outputPath);
+            Console.WriteLine($"\nDone Setting Up Directories. [{_stopWatch.ElapsedMilliseconds}ms]");
         }
         
         static void SetupOutputAssetFolder(string outputPath)
         {
             var directory = outputPath + "\\output_assets";
-            Console.WriteLine($"Checking If {directory} Exists...");
+            //Console.WriteLine($"Checking If {directory} Exists...");
             if (Directory.Exists(directory))
             {
-                Console.WriteLine($"{directory} Exists!");
-                Console.Write($"Deleting {directory} ...");
+                //Console.WriteLine($"{directory} Exists!");
+                //Console.Write($"Deleting {directory} ...");
                 var deleteTask = Task.Run(() =>
                 {
                     Directory.Delete(directory, true);
                 });
+                //Task.WaitAll(deleteTask);
                 while (!deleteTask.IsCompleted)
                 {
                     Console.Write(".");
                     Thread.Sleep(100);
                 }
                 
-                Console.WriteLine($"\nDeleted {directory}");
+                //Console.WriteLine($"\nDeleted {directory}");
             }
-            Console.WriteLine($"Creating {directory} ...");
+            //Console.WriteLine($"Creating {directory} ...");
             Directory.CreateDirectory(directory);
-            Console.WriteLine($"Created {directory}");
+            //Console.WriteLine($"Created {directory}");
         }
         
         static void SetupOutputNdsFolder(string outputPath)
         {
             var directory = outputPath + "\\output_nds";
-            Console.WriteLine($"Checking If {directory} Exists...");
+            //Console.WriteLine($"Checking If {directory} Exists...");
             if (!Directory.Exists(directory)) return;
-            Console.WriteLine($"{directory} Exists!");
-            Console.Write($"Deleting {directory} ...");
+            //Console.WriteLine($"{directory} Exists!");
+            //Console.Write($"Deleting {directory} ...");
             var deleteTask = Task.Run(() =>
             {
                 Directory.Delete(directory, true);
             });
+            //Task.WaitAll(deleteTask);
             while (!deleteTask.IsCompleted)
             {
                 Console.Write(".");
                 Thread.Sleep(100);
             }
-            Console.WriteLine($"\nDeleted {directory}");
+            //Console.WriteLine($"\nDeleted {directory}");
         }
 
         static void WriteErrorLine(string error)
